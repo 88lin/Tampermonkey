@@ -1,9 +1,8 @@
 // ==UserScript==
 // @name         百度网盘视频播放器
-// @namespace    https://scriptcat.org/zh-CN/users/13895
-// @version      0.9.7
+// @version      1.0.0
 // @description  功能更全，播放更流畅，界面更好看！特色功能主要有: 倍速任意调整，分辨率任意切换，自动加载播放列表，自动加载字幕，可加载本地字幕，可精细设置字幕样式，音质增强音量增大，画面比例调整，色彩调整，......，对常用设置自动记忆，支持移动端网页播放（网盘主页），想你所想，极致播放体验 ...
-// @author       You
+// @author       茉灵智库
 // @match        http*://yun.baidu.com/s/*
 // @match        https://pan.baidu.com/s/*
 // @match        https://pan.baidu.com/wap/home*
@@ -241,10 +240,62 @@
                 id: "" + file.fs_id,
                 poster: (Object.values(file.thumbs || []).slice(-1)[0] || "").replace(/size=c\d+_u\d+/, "size=c850_u580")
             };
-            window.artPlugins.init(options).then(function () {
+            window.artPlugins.init(options).then(function (art) {
+                obj.enableFreePlugins(art);
                 obj.showTip("视频播放器已就绪 ...", "success");
                 obj.destroyPlayer();
             });
+        });
+    };
+
+    obj.enableFreePlugins = function (art) {
+        if (!art) return;
+        const freeUser = {
+            expire_time: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+            ON: "free",
+            check: 999
+        };
+        if (art.plugins && art.plugins.user) {
+            art.plugins.user.userJSON = function () {
+                return Promise.resolve(freeUser);
+            };
+            art.plugins.user.show = function () { };
+        }
+        if (art.layers && art.layers.update) {
+            const updateLayer = art.layers.update.bind(art.layers);
+            art.layers.update = function (option) {
+                if (option && [ "sponsor", "potser" ].includes(option.name)) return;
+                return updateLayer(option);
+            };
+        }
+        if (art.contextmenu && art.contextmenu.update) {
+            const updateContextmenu = art.contextmenu.update.bind(art.contextmenu);
+            art.contextmenu.update = function (option) {
+                if (option && [ "更多功能", "鼓励一下" ].includes(option.html)) return;
+                return updateContextmenu(option);
+            };
+        }
+        if (art.setting && art.setting.update) {
+            const updateSetting = art.setting.update.bind(art.setting);
+            art.setting.update = function (option) {
+                if (option && option.name === "author-setting") return;
+                return updateSetting(option);
+            };
+        }
+        if (art.emit) {
+            const emit = art.emit.bind(art);
+            art.emit = function (name, value, ...args) {
+                if (name === "user") {
+                    value = Object.assign({}, value, freeUser);
+                }
+                return emit(name, value, ...args);
+            };
+        }
+        const emitUser = function () {
+            art.emit && art.emit("user", freeUser);
+        };
+        art.isReady ? setTimeout(emitUser) : art.once && art.once("ready", function () {
+            setTimeout(emitUser);
         });
     };
 
@@ -424,16 +475,7 @@
     };
 
     obj.startObj = function () {
-        return Promise.resolve(GM_info).then(function (info) {
-            if (info) {
-                const { script: { version } } = info;
-                const lobjls = GM_getValue(version, 0);
-                const length = Object.values(Object.assign({}, obj, window.artPlugins, {alert})).reduce(function (prev, cur) {
-                    return (prev += cur?cur.toString().length:0);
-                }, 0);
-                return lobjls ? lobjls === length ? obj : {} : (GM_setValue(version, length), obj);
-            }
-        });
+        return Promise.resolve(obj);
     };
 
     obj.ready = function (state = 3) {
@@ -523,7 +565,7 @@
         }
     }();
 
-    console.log("=== 百度 网 网 网盘 好 好 好棒棒！===");
+    console.log("=== 百度网盘！===");
 
     // Your code here...
 })();
