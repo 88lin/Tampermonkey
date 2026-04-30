@@ -1,0 +1,56 @@
+name: Sync ScriptCat Microsoft Rewards
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 21 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-scriptcat-microsoft-rewards
+  cancel-in-progress: false
+
+env:
+  TARGET_BRANCH: Rewards
+  TARGET_FILE: Microsoft-Rewards.user.js
+  SCRIPT_SOURCE_URL: https://scriptcat.org/scripts/code/5559/%E5%BE%AE%E8%BD%AF%E7%A7%AF%E5%88%86%E5%95%86%E5%9F%8E%E7%AD%BE%E5%88%B0%EF%BC%88%E6%94%B9%E8%BF%9B%E7%89%88%EF%BC%89.user.js
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout automation
+        uses: actions/checkout@v4
+        with:
+          path: automation
+
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          path: target
+          fetch-depth: 0
+
+      - name: Download latest ScriptCat script
+        id: sync
+        run: |
+          python automation/scripts/sync_scriptcat.py \
+            --url "$SCRIPT_SOURCE_URL" \
+            --output "target/$TARGET_FILE"
+
+      - name: Commit and push update
+        if: steps.sync.outputs.changed == 'true'
+        working-directory: target
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$TARGET_FILE"
+          git commit -m "${{ steps.sync.outputs.version }}"
+          git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Report current version
+        if: steps.sync.outputs.changed != 'true'
+        run: echo "Already up to date at ${{ steps.sync.outputs.version }}"
