@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: sync-scriptcat-microsoft-rewards
@@ -50,6 +51,24 @@ jobs:
           git add "$TARGET_FILE"
           git commit -m "${{ steps.sync.outputs.version }}"
           git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Open pull request into main
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.sync.outputs.version }}
+        run: |
+          existing_pr="$(gh pr list --base main --head "$TARGET_BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing_pr" ]; then
+            echo "Pull request #$existing_pr already exists for ${TARGET_BRANCH} -> main"
+            exit 0
+          fi
+
+          gh pr create \
+            --base main \
+            --head "$TARGET_BRANCH" \
+            --title "Sync Microsoft Rewards ${VERSION} into main" \
+            --body "ScriptCat upstream has been synced to ${VERSION} on the pristine ${TARGET_BRANCH} branch. Review this PR and merge or cherry-pick the upstream changes into the customized main branch."
 
       - name: Report current version
         if: steps.sync.outputs.changed != 'true'
