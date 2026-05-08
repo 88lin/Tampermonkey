@@ -1165,10 +1165,12 @@ FuckD.bing.datetimeLocaleStr = now.toLocaleString()
 await Promise.all(webhook.map(async (i) => {
     if (!i.key) return
     let message = `「${i.name}」消息推送`
+    const safeKey = String(i.key).trim()
+    const targetUrl = /^https?:\/\//i.test(safeKey) ? safeKey : i.url + safeKey
     try {
         const result = await FuckF.xhr({
             method: "POST",
-            url: i.url + i.key,
+            url: targetUrl,
             headers: {
                 "content-type": "application/json; charset=UTF-8",
             },
@@ -1339,7 +1341,12 @@ FuckF.tasksStart = async (initDelay = 0) => {
         const needPromos = FuckD.tasks.promos && (isKeep || FuckD.promos.date != FuckD.bing.dateNowNum);
         const needSearch = FuckD.tasks.search && (isKeep || FuckD.search.date != FuckD.bing.dateNowNum);
         FuckF.log("🔵", `初始化运行完成！用时 ${((FuckF.getTimestamp() - seconds) - initDelay) / 1000} 秒`);
-        await FuckF.renewToken();
+        const tokenReady = await FuckF.renewToken();
+        if (!tokenReady && (FuckD.tasks.sign || FuckD.tasks.read)) {
+            FuckD.tasks.sign = false;
+            FuckD.tasks.read = false;
+            FuckF.notify("🟡", "Token 请求失败，已跳过签入和阅读任务，请检查授权码或网络连接", true, "auth.token.failed");
+        }
         if (needPromos || needSearch) {
             const result = await FuckF.getRewardsInfo();
             if (!result) {
